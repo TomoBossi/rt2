@@ -19,15 +19,15 @@ type fps struct {
 
 type game struct {
 	img        *ebiten.Image
-	camera     camera
-	world      world
+	camera     *camera
+	world      *world
 	fullscreen bool
 	fps        fps
 }
 
 type gameParams struct {
-	camera camera
-	world  world
+	camera *camera
+	world  *world
 	fpsCap int
 }
 

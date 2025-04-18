@@ -2,7 +2,7 @@ package main
 
 func main() {
 	world := world{
-		[]hittable{
+		objects: []hittable{
 			sphere{
 				center: vec3{0, 0, -1.2},
 				radius: 0.5,
@@ -40,14 +40,15 @@ func main() {
 		defocusAngle:  0,
 		focalDistance: 3.4,
 		antiAliasing:  1,
-		maxDepth:      30,
+		maxDepth:      10,
 	})
 
-	game := true
-	if game {
-		gameInit(gameParams{camera: camera, world: world, fpsCap: 30})
+	defer close(camera.renderJobQueue)
+
+	if game := true; game {
+		gameInit(gameParams{camera: &camera, world: &world, fpsCap: 50})
 	} else {
-		camera.render(world)
+		camera.render(&world)
 		err := camera.screenshot("./out/", "image.png")
 		if err != nil {
 			panic(err)

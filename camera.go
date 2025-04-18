@@ -8,27 +8,32 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sync"
 )
 
 type camera struct {
-	aspectRatio               float64 // Ratio of image width over height
-	imgWidth                  int     // Rendered image width in pixel count
-	imgHeight                 int     // Rendered image height
-	center                    vec3    // Camera center
-	lookAt                    vec3    // Point in space where the camera is looking
-	upDir                     vec3    // "Up" direction
-	u, v, w                   vec3    // Camera frame of reference versors
-	verticalFOV               float64 // Vertical view angle
-	defocusAngle              float64 // Variation angle of rays through each pixel
-	focalDistance             float64 // Distance from camera lookfrom point to plane of perfect focus
-	defocusDiskU              vec3    // Defocus disk horizontal radius
-	defocusDiskV              vec3    // Defocus disk vertical radius
-	viewportUpperLeft         vec3    // Location of top-left corner of pixel 0, 0
-	interPixelDeltaHorizontal vec3    // Offset to pixel to the right
-	interPixelDeltaVertical   vec3    // Offset to pixel below
-	antiAliasing              int     // Level of antialiasing
-	maxDepth                  int     // Maximum number of ray bounces into scene
-	pixels                    []byte  // Flattened image last rendered by the camera
+	aspectRatio                 float64        // Ratio of image width over height
+	imgWidth                    int            // Rendered image width in pixel count
+	imgHeight                   int            // Rendered image height
+	center                      vec3           // Camera center
+	lookAt                      vec3           // Point in space where the camera is looking
+	upDir                       vec3           // Up direction
+	u, v, w                     vec3           // Camera frame of reference versors
+	verticalFOV                 float64        // Vertical view angle
+	defocusAngle                float64        // Variation angle of rays through each pixel
+	focalDistance               float64        // Distance from camera lookfrom point to plane of perfect focus
+	defocusDiskU                vec3           // Defocus disk horizontal radius
+	defocusDiskV                vec3           // Defocus disk vertical radius
+	viewportUpperLeft           vec3           // Location of top-left corner of pixel 0, 0
+	interPixelDeltaHorizontal   vec3           // Offset to pixel to the right
+	interPixelDeltaVertical     vec3           // Offset to pixel below
+	antiAliasing                int            // Level of antialiasing
+	antiAliasingDeltaHorizontal vec3           // Offset to sub-pixel sample to the right
+	antiAliasingDeltaVertical   vec3           // Offset to sub-pixel sample below
+	maxDepth                    int            // Maximum number of ray bounces into scene
+	pixels                      []byte         // Flattened image last rendered by the camera
+	renderJobQueue              chan renderJob // Render task queue to be split between workers
 }
 
 type cameraParams struct {
@@ -41,6 +46,13 @@ type cameraParams struct {
 	focalDistance float64 // Distance from camera lookfrom point to plane of perfect focus
 	antiAliasing  int     // Level of antialiasing
 	maxDepth      int     // Maximum number of ray bounces into scene
+}
+
+type renderJob struct {
+	startRow int
+	endRow   int
+	wg       *sync.WaitGroup
+	world    *world
 }
 
 func cameraInit(params cameraParams) camera {
@@ -73,31 +85,53 @@ func cameraInit(params cameraParams) camera {
 		pixels[i] = 255
 	}
 
-	return camera{
-		aspectRatio:               params.aspectRatio,
-		imgWidth:                  params.imgWidth,
-		imgHeight:                 imgHeight,
-		center:                    center,
-		lookAt:                    params.lookAt,
-		upDir:                     upDir,
-		u:                         u,
-		v:                         v,
-		w:                         w,
-		verticalFOV:               params.verticalFOV,
-		defocusAngle:              params.defocusAngle,
-		focalDistance:             params.focalDistance,
-		defocusDiskU:              defocusDiskU,
-		defocusDiskV:              defocusDiskV,
-		viewportUpperLeft:         viewportUpperLeft,
-		interPixelDeltaHorizontal: interPixelDeltaHorizontal,
-		interPixelDeltaVertical:   interPixelDeltaVertical,
-		antiAliasing:              params.antiAliasing,
-		maxDepth:                  params.maxDepth,
-		pixels:                    pixels,
+	antiAliasingDeltaHorizontal := interPixelDeltaHorizontal.divide(float64(params.antiAliasing + 1))
+	antiAliasingDeltaVertical := interPixelDeltaVertical.divide(float64(params.antiAliasing + 1))
+
+	c := camera{
+		aspectRatio:                 params.aspectRatio,
+		imgWidth:                    params.imgWidth,
+		imgHeight:                   imgHeight,
+		center:                      center,
+		lookAt:                      params.lookAt,
+		upDir:                       upDir,
+		u:                           u,
+		v:                           v,
+		w:                           w,
+		verticalFOV:                 params.verticalFOV,
+		defocusAngle:                params.defocusAngle,
+		focalDistance:               params.focalDistance,
+		defocusDiskU:                defocusDiskU,
+		defocusDiskV:                defocusDiskV,
+		viewportUpperLeft:           viewportUpperLeft,
+		interPixelDeltaHorizontal:   interPixelDeltaHorizontal,
+		interPixelDeltaVertical:     interPixelDeltaVertical,
+		antiAliasing:                params.antiAliasing,
+		antiAliasingDeltaHorizontal: antiAliasingDeltaHorizontal,
+		antiAliasingDeltaVertical:   antiAliasingDeltaVertical,
+		maxDepth:                    params.maxDepth,
+		pixels:                      pixels,
 	}
+
+	numWorkers := runtime.NumCPU()
+	c.renderJobQueue = make(chan renderJob, numWorkers)
+	for i := 0; i < numWorkers; i++ {
+		go func() {
+			for job := range c.renderJobQueue {
+				for y := job.startRow; y < job.endRow; y++ {
+					for x := 0; x < c.imgWidth; x++ {
+						c.renderPixel(x, y, job.world)
+					}
+				}
+				job.wg.Done()
+			}
+		}()
+	}
+
+	return c
 }
 
-func rayColor(r ray, depth int, w world) vec3 {
+func rayColor(r ray, depth int, w *world) vec3 {
 	if depth <= 0 {
 		return vec3{0, 0, 0}
 	}
@@ -117,50 +151,64 @@ func rayColor(r ray, depth int, w world) vec3 {
 	return vec3{1.0, 1.0, 1.0}.scale(1.0 - a).add(vec3{0.5, 0.7, 1.0}.scale(a))
 }
 
-func (c camera) render(w world) {
-	intensity := interval{0, 0.999}
-	antiAliasingDeltaHorizontal := c.interPixelDeltaHorizontal.divide(float64(c.antiAliasing + 1))
-	antiAliasingDeltaVertical := c.interPixelDeltaVertical.divide(float64(c.antiAliasing + 1))
-	for y := range c.imgHeight {
-		for x := range c.imgWidth {
-			pixelCorner := c.viewportUpperLeft.
-				add(c.interPixelDeltaHorizontal.scale(float64(x))).
-				add(c.interPixelDeltaVertical.scale(float64(y)))
+func (c *camera) renderPixel(x, y int, w *world) {
+	pixelCorner := c.viewportUpperLeft.
+		add(c.interPixelDeltaHorizontal.scale(float64(x))).
+		add(c.interPixelDeltaVertical.scale(float64(y)))
 
-			rayCol := vec3{0, 0, 0}
-			for j := 1; j < c.antiAliasing+1; j++ {
-				for i := 1; i < c.antiAliasing+1; i++ {
-					viewportPoint := pixelCorner.
-						add(antiAliasingDeltaHorizontal.scale(float64(i))).
-						add(antiAliasingDeltaVertical.scale(float64(j)))
-					rayOri := c.center
-					if c.defocusAngle > 0 {
-						rayOri = c.randomPointOnDefocusDisk()
-					}
-					rayDir := viewportPoint.subtract(rayOri)
-					rayCol = rayCol.add(rayColor(ray{ori: rayOri, dir: rayDir}, c.maxDepth, w))
-				}
+	rayCol := vec3{0, 0, 0}
+	for j := 1; j < c.antiAliasing+1; j++ {
+		for i := 1; i < c.antiAliasing+1; i++ {
+			viewportPoint := pixelCorner.
+				add(c.antiAliasingDeltaHorizontal.scale(float64(i))).
+				add(c.antiAliasingDeltaVertical.scale(float64(j)))
+			rayOri := c.center
+			if c.defocusAngle > 0 {
+				rayOri = c.randomPointOnDefocusDisk()
 			}
-
-			col := rayCol.divide(float64(c.antiAliasing) * float64(c.antiAliasing))
-			r := uint8(math.Floor(256 * intensity.clamp(math.Sqrt(col.x))))
-			g := uint8(math.Floor(256 * intensity.clamp(math.Sqrt(col.y))))
-			b := uint8(math.Floor(256 * intensity.clamp(math.Sqrt(col.z))))
-
-			idx := 4 * (y*c.imgWidth + x)
-			c.pixels[idx] = r
-			c.pixels[idx+1] = g
-			c.pixels[idx+2] = b
+			rayDir := viewportPoint.subtract(rayOri)
+			rayCol = rayCol.add(rayColor(ray{ori: rayOri, dir: rayDir}, c.maxDepth, w))
 		}
 	}
+
+	idx := 4 * (y*c.imgWidth + x)
+	color := rayCol.divide(float64(c.antiAliasing) * float64(c.antiAliasing))
+	c.pixels[idx] = uint8(math.Floor(255.999 * math.Sqrt(color.x)))
+	c.pixels[idx+1] = uint8(math.Floor(255.999 * math.Sqrt(color.y)))
+	c.pixels[idx+2] = uint8(math.Floor(255.999 * math.Sqrt(color.z)))
 }
 
-func (c camera) randomPointOnDefocusDisk() vec3 {
+func (c *camera) render(w *world) {
+	numWorkers := runtime.NumCPU()
+	rowsPerWorker := c.imgHeight / numWorkers
+
+	var wg sync.WaitGroup
+
+	for i := 0; i < numWorkers; i++ {
+		startRow := i * rowsPerWorker
+		endRow := startRow + rowsPerWorker
+		if i == numWorkers-1 {
+			endRow = c.imgHeight
+		}
+
+		wg.Add(1)
+		c.renderJobQueue <- renderJob{
+			startRow: startRow,
+			endRow:   endRow,
+			wg:       &wg,
+			world:    w,
+		}
+	}
+
+	wg.Wait()
+}
+
+func (c *camera) randomPointOnDefocusDisk() vec3 {
 	v := randomVecOnUnitDisk()
 	return c.center.add(c.defocusDiskU.scale(v.x)).add(c.defocusDiskV.scale(v.y))
 }
 
-func (c camera) screenshot(directory, fileName string) error {
+func (c *camera) screenshot(directory, fileName string) error {
 	ext := filepath.Ext(fileName)
 	path := filepath.Join(directory, fileName)
 
