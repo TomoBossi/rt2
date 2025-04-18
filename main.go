@@ -26,19 +26,19 @@ func main() {
 			sphere{
 				center: vec3{0, -100.5, -1},
 				radius: 100,
-				mat:    lambertian{albedo: vec3{0.8, 0.8, 0.0}},
+				mat:    metal{albedo: vec3{0.8, 0.8, 0.0}, fuzz: 0.0},
 			},
 		},
 	}
 
 	camera := cameraInit(cameraParams{
-		imgWidth:      100,
+		imgWidth:      130,
 		aspectRatio:   16.0 / 9.0,
-		lookFrom:      vec3{-1.436, 1.365, 0.294},
-		lookAt:        vec3{-0.858, 0.788, -0.283},
-		verticalFOV:   20,
+		verticalFov:   60.00,
+		lookFrom:      vec3{-0.183, -0.168, -0.463},
+		lookAt:        vec3{0.572, -0.365, -1.088},
 		defocusAngle:  0,
-		focalDistance: 3.4,
+		focalDistance: 1,
 		antiAliasing:  1,
 		maxDepth:      10,
 	})
@@ -46,7 +46,7 @@ func main() {
 	defer close(camera.renderJobQueue)
 
 	if game := true; game {
-		gameInit(gameParams{camera: camera, world: world, fpsCap: 50})
+		gameInit(gameParams{camera: camera, world: world, fpsCap: 30, fullscreen: true})
 	} else {
 		camera.render(world)
 		err := camera.screenshot("./out/", "image.png")

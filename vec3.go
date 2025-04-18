@@ -104,6 +104,15 @@ func (v vec3) cross(u vec3) vec3 {
 	}
 }
 
+func (v vec3) rotateAroundAxis(axis vec3, angle float64) vec3 {
+	axis = axis.normalize()
+	cos := math.Cos(angle)
+	sin := math.Sin(angle)
+	return v.scale(cos).
+		add(axis.cross(v).scale(sin)).
+		add(axis.scale(axis.dot(v) * (1 - cos)))
+}
+
 func (v vec3) String() string {
 	return fmt.Sprintf("vec3{%.3f, %.3f, %.3f}", v.x, v.y, v.z)
 }

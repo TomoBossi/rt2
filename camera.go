@@ -22,7 +22,7 @@ type camera struct {
 	viewportWidth               float64        // Width of the virtual viewport
 	viewportHeight              float64        // Height of the virtual viewport
 	u, v, w                     vec3           // Camera frame of reference versors
-	verticalFOV                 float64        // Vertical view angle
+	verticalFov                 float64        // Vertical view angle
 	defocusAngle                float64        // Variation angle of rays through each pixel
 	focalDistance               float64        // Distance from camera lookfrom point to plane of perfect focus
 	defocusDiskU                vec3           // Defocus disk horizontal radius
@@ -43,7 +43,7 @@ type cameraParams struct {
 	imgWidth      int     // Rendered image width in pixel count
 	lookFrom      vec3    // Point in space where the camera eye is located
 	lookAt        vec3    // Point in space where the camera is looking
-	verticalFOV   float64 // Vertical view angle
+	verticalFov   float64 // Vertical view angle
 	defocusAngle  float64 // Variation angle of rays through each pixel
 	focalDistance float64 // Distance from camera lookfrom point to plane of perfect focus
 	antiAliasing  int     // Level of antialiasing
@@ -62,7 +62,7 @@ func cameraInit(params cameraParams) *camera {
 	upDir := vec3{0, 1, 0}
 
 	imgHeight := int(float64(params.imgWidth) / params.aspectRatio)
-	viewportHeight := 2 * math.Tan(deg2rad(params.verticalFOV)/2) * params.focalDistance
+	viewportHeight := 2 * math.Tan(deg2rad(params.verticalFov)/2) * params.focalDistance
 	viewportWidth := viewportHeight * (float64(params.imgWidth) / float64(imgHeight))
 
 	w := center.subtract(params.lookAt).normalize()
@@ -102,7 +102,7 @@ func cameraInit(params cameraParams) *camera {
 		u:                           u,
 		v:                           v,
 		w:                           w,
-		verticalFOV:                 params.verticalFOV,
+		verticalFov:                 params.verticalFov,
 		defocusAngle:                params.defocusAngle,
 		focalDistance:               params.focalDistance,
 		defocusDiskU:                defocusDiskU,
@@ -212,13 +212,27 @@ func (c *camera) randomPointOnDefocusDisk() vec3 {
 	return c.center.add(c.defocusDiskU.scale(v.x)).add(c.defocusDiskV.scale(v.y))
 }
 
-func (c *camera) translate(movement vec3) {
-	relativeMovement := c.u.scale(movement.x).add(c.v.scale(movement.y)).add(c.w.scale(movement.z))
+func (c *camera) update(movement vec3, fov, yaw, pitch float64) {
+	relativeMovement := c.u.scale(movement.x).add(c.upDir.scale(movement.y)).add(c.w.scale(movement.z))
 	c.center = c.center.add(relativeMovement)
 	c.viewportUpperLeft = c.viewportUpperLeft.add(relativeMovement)
-}
 
-func (c *camera) rotate(angles vec3) {
+	c.verticalFov = interval{0.0001, 120}.clamp(c.verticalFov + fov)
+	c.viewportHeight = 2 * math.Tan(deg2rad(c.verticalFov)/2) * c.focalDistance
+	c.viewportWidth = c.viewportHeight * (float64(c.imgWidth) / float64(c.imgHeight))
+
+	c.w = c.w.rotateAroundAxis(c.u, pitch).rotateAroundAxis(c.upDir, yaw)
+	c.u = c.upDir.cross(c.w).normalize()
+	c.v = c.w.cross(c.u)
+
+	viewportEdgeHorizontal := c.u.scale(c.viewportWidth)
+	viewportEdgeVertical := c.v.scale(-c.viewportHeight)
+	c.interPixelDeltaHorizontal = viewportEdgeHorizontal.divide(float64(c.imgWidth))
+	c.interPixelDeltaVertical = viewportEdgeVertical.divide(float64(c.imgHeight))
+
+	c.viewportUpperLeft = c.center.
+		subtract(c.w.scale(c.focalDistance)).
+		subtract((viewportEdgeHorizontal.add(viewportEdgeVertical)).scale(0.5))
 }
 
 func (c *camera) screenshot(directory, fileName string) error {
