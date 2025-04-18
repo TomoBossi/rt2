@@ -9,10 +9,6 @@ type vec3 struct {
 	x, y, z float64
 }
 
-// func randomVec() vec3 {
-// 	return vec3{random(), random(), random()}
-// }
-
 func randomVecIn(min, max float64) vec3 {
 	return vec3{randomIn(min, max), randomIn(min, max), randomIn(min, max)}
 }
