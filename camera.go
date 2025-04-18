@@ -22,6 +22,7 @@ type camera struct {
 	viewportWidth               float64        // Width of the virtual viewport
 	viewportHeight              float64        // Height of the virtual viewport
 	u, v, w                     vec3           // Camera frame of reference versors
+	pitch                       float64        // Pitch angle
 	verticalFov                 float64        // Vertical view angle
 	defocusAngle                float64        // Variation angle of rays through each pixel
 	focalDistance               float64        // Distance from camera lookfrom point to plane of perfect focus
@@ -68,6 +69,7 @@ func cameraInit(params cameraParams) *camera {
 	w := center.subtract(params.lookAt).normalize()
 	u := upDir.cross(w).normalize()
 	v := w.cross(u)
+	pitch := w.angle(upDir)
 
 	viewportEdgeHorizontal := u.scale(viewportWidth)
 	viewportEdgeVertical := v.scale(-viewportHeight)
@@ -102,6 +104,7 @@ func cameraInit(params cameraParams) *camera {
 		u:                           u,
 		v:                           v,
 		w:                           w,
+		pitch:                       pitch,
 		verticalFov:                 params.verticalFov,
 		defocusAngle:                params.defocusAngle,
 		focalDistance:               params.focalDistance,
@@ -217,13 +220,15 @@ func (c *camera) update(movement vec3, fov, yaw, pitch float64) {
 	c.center = c.center.add(relativeMovement)
 	c.viewportUpperLeft = c.viewportUpperLeft.add(relativeMovement)
 
-	c.verticalFov = interval{0.0001, 120}.clamp(c.verticalFov + fov)
+	c.verticalFov = interval{0.001, 179.999}.clamp(c.verticalFov + fov)
 	c.viewportHeight = 2 * math.Tan(deg2rad(c.verticalFov)/2) * c.focalDistance
 	c.viewportWidth = c.viewportHeight * (float64(c.imgWidth) / float64(c.imgHeight))
 
-	c.w = c.w.rotateAroundAxis(c.u, pitch).rotateAroundAxis(c.upDir, yaw)
+	newPitch := interval{0.001, math.Pi - 0.001}.clamp(c.pitch + pitch)
+	c.w = c.w.rotateAroundAxis(c.u, newPitch-c.pitch).rotateAroundAxis(c.upDir, yaw)
 	c.u = c.upDir.cross(c.w).normalize()
 	c.v = c.w.cross(c.u)
+	c.pitch = newPitch
 
 	viewportEdgeHorizontal := c.u.scale(c.viewportWidth)
 	viewportEdgeVertical := c.v.scale(-c.viewportHeight)

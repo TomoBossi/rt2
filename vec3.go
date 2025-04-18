@@ -113,6 +113,17 @@ func (v vec3) rotateAroundAxis(axis vec3, angle float64) vec3 {
 		add(axis.scale(axis.dot(v) * (1 - cos)))
 }
 
+func (v vec3) angle(u vec3) float64 {
+	lv := v.l2()
+	lu := u.l2()
+
+	if lv*lu == 0 {
+		return 0
+	}
+
+	return math.Acos(interval{-1, 1}.clamp(v.dot(u) / (lv * lu)))
+}
+
 func (v vec3) String() string {
-	return fmt.Sprintf("vec3{%.3f, %.3f, %.3f}", v.x, v.y, v.z)
+	return fmt.Sprintf("vec3{%.2f, %.2f, %.2f}", v.x, v.y, v.z)
 }
