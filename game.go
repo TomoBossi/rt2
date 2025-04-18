@@ -11,10 +11,11 @@ import (
 )
 
 type fps struct {
-	since   time.Time
-	count   int
-	average float64
-	cap     int
+	since              time.Time
+	count              int
+	average            float64
+	averageRefreshRate float64
+	cap                int
 }
 
 type game struct {
@@ -51,7 +52,7 @@ func (g *game) Update() error {
 func (g *game) updateFps() {
 	g.fps.count++
 	elapsed := time.Since(g.fps.since).Seconds()
-	if elapsed >= 1.0 {
+	if elapsed >= 1/g.fps.averageRefreshRate {
 		g.fps.average = float64(g.fps.count) / elapsed
 		g.fps.count = 0
 		g.fps.since = time.Now()
@@ -78,10 +79,10 @@ func gameInit(params gameParams) {
 		img:    ebiten.NewImage(params.camera.imgWidth, params.camera.imgHeight),
 		camera: params.camera,
 		world:  params.world,
-		fps:    fps{since: time.Now(), cap: params.fpsCap},
+		fps:    fps{since: time.Now(), cap: params.fpsCap, averageRefreshRate: 1},
 	}
 
-	ebiten.SetWindowTitle("RT2")
+	ebiten.SetWindowTitle("RT²")
 	ebiten.SetWindowSize(800, int(800/params.camera.aspectRatio))
 	ebiten.SetCursorMode(ebiten.CursorModeCaptured)
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
