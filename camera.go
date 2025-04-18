@@ -19,6 +19,8 @@ type camera struct {
 	center                      vec3           // Camera center
 	lookAt                      vec3           // Point in space where the camera is looking
 	upDir                       vec3           // Up direction
+	viewportWidth               float64        // Width of the virtual viewport
+	viewportHeight              float64        // Height of the virtual viewport
 	u, v, w                     vec3           // Camera frame of reference versors
 	verticalFOV                 float64        // Vertical view angle
 	defocusAngle                float64        // Variation angle of rays through each pixel
@@ -55,7 +57,7 @@ type renderJob struct {
 	world    *world
 }
 
-func cameraInit(params cameraParams) camera {
+func cameraInit(params cameraParams) *camera {
 	center := params.lookFrom
 	upDir := vec3{0, 1, 0}
 
@@ -88,13 +90,15 @@ func cameraInit(params cameraParams) camera {
 	antiAliasingDeltaHorizontal := interPixelDeltaHorizontal.divide(float64(params.antiAliasing + 1))
 	antiAliasingDeltaVertical := interPixelDeltaVertical.divide(float64(params.antiAliasing + 1))
 
-	c := camera{
+	c := &camera{
 		aspectRatio:                 params.aspectRatio,
 		imgWidth:                    params.imgWidth,
 		imgHeight:                   imgHeight,
 		center:                      center,
 		lookAt:                      params.lookAt,
 		upDir:                       upDir,
+		viewportWidth:               viewportWidth,
+		viewportHeight:              viewportHeight,
 		u:                           u,
 		v:                           v,
 		w:                           w,
@@ -119,7 +123,7 @@ func cameraInit(params cameraParams) camera {
 		go func() {
 			for job := range c.renderJobQueue {
 				for y := job.startRow; y < job.endRow; y++ {
-					for x := 0; x < c.imgWidth; x++ {
+					for x := range c.imgWidth {
 						c.renderPixel(x, y, job.world)
 					}
 				}
@@ -206,6 +210,12 @@ func (c *camera) render(w *world) {
 func (c *camera) randomPointOnDefocusDisk() vec3 {
 	v := randomVecOnUnitDisk()
 	return c.center.add(c.defocusDiskU.scale(v.x)).add(c.defocusDiskV.scale(v.y))
+}
+
+func (c *camera) translate(movement vec3) {
+	relativeMovement := c.u.scale(movement.x).add(c.v.scale(movement.y)).add(c.w.scale(movement.z))
+	c.center = c.center.add(relativeMovement)
+	c.viewportUpperLeft = c.viewportUpperLeft.add(relativeMovement)
 }
 
 func (c *camera) screenshot(directory, fileName string) error {

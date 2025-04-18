@@ -1,7 +1,7 @@
 package main
 
 func main() {
-	world := world{
+	world := &world{
 		objects: []hittable{
 			sphere{
 				center: vec3{0, 0, -1.2},
@@ -46,9 +46,9 @@ func main() {
 	defer close(camera.renderJobQueue)
 
 	if game := true; game {
-		gameInit(gameParams{camera: &camera, world: &world, fpsCap: 50})
+		gameInit(gameParams{camera: camera, world: world, fpsCap: 50})
 	} else {
-		camera.render(&world)
+		camera.render(world)
 		err := camera.screenshot("./out/", "image.png")
 		if err != nil {
 			panic(err)

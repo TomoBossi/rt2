@@ -42,7 +42,28 @@ func (g *game) Update() error {
 		return errors.New("esc")
 	}
 
+	movement := vec3{0, 0, 0}
+	if ebiten.IsKeyPressed(ebiten.KeyW) {
+		movement = movement.add(vec3{0, 0, -0.2})
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyS) {
+		movement = movement.add(vec3{0, 0, 0.1})
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyA) {
+		movement = movement.add(vec3{-0.1, 0, 0})
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyD) {
+		movement = movement.add(vec3{0.1, 0, 0})
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyShift) {
+		movement = movement.add(vec3{0, -0.1, 0})
+	}
+	if ebiten.IsKeyPressed(ebiten.KeySpace) {
+		movement = movement.add(vec3{0, 0.1, 0})
+	}
+
 	g.updateFps()
+	g.camera.translate(movement)
 	g.camera.render(g.world)
 	g.img.WritePixels(g.camera.pixels)
 
@@ -82,7 +103,7 @@ func gameInit(params gameParams) {
 		fps:    fps{since: time.Now(), cap: params.fpsCap, averageRefreshRate: 1},
 	}
 
-	ebiten.SetWindowTitle("RT²")
+	ebiten.SetWindowTitle("(RT)²")
 	ebiten.SetWindowSize(800, int(800/params.camera.aspectRatio))
 	ebiten.SetCursorMode(ebiten.CursorModeCaptured)
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
