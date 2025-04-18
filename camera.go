@@ -218,6 +218,9 @@ func (c *camera) translate(movement vec3) {
 	c.viewportUpperLeft = c.viewportUpperLeft.add(relativeMovement)
 }
 
+func (c *camera) rotate(angles vec3) {
+}
+
 func (c *camera) screenshot(directory, fileName string) error {
 	ext := filepath.Ext(fileName)
 	path := filepath.Join(directory, fileName)

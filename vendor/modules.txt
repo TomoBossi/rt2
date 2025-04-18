@@ -1,3 +1,6 @@
+# github.com/atotto/clipboard v0.1.4
+## explicit
+github.com/atotto/clipboard
 # github.com/ebitengine/gomobile v0.0.0-20250329061421-6d0a8e981e4c
 ## explicit; go 1.23.0
 github.com/ebitengine/gomobile/app

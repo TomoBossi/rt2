@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/atotto/clipboard"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -40,6 +41,13 @@ func (g *game) Update() error {
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
 		return errors.New("esc")
+	}
+
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+		err := clipboard.WriteAll(fmt.Sprintf("lookFrom: %s,\nlookAt: %s,", g.camera.center, g.camera.center.subtract(g.camera.w)))
+		if err != nil {
+			return errors.New("copy")
+		}
 	}
 
 	movement := vec3{0, 0, 0}

@@ -34,8 +34,8 @@ func main() {
 	camera := cameraInit(cameraParams{
 		imgWidth:      100,
 		aspectRatio:   16.0 / 9.0,
-		lookFrom:      vec3{-2, 2, 1},
-		lookAt:        vec3{0, 0, -1},
+		lookFrom:      vec3{-1.436, 1.365, 0.294},
+		lookAt:        vec3{-0.858, 0.788, -0.283},
 		verticalFOV:   20,
 		defocusAngle:  0,
 		focalDistance: 3.4,

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math"
 )
 
@@ -101,4 +102,8 @@ func (v vec3) cross(u vec3) vec3 {
 		v.z*u.x - v.x*u.z,
 		v.x*u.y - v.y*u.x,
 	}
+}
+
+func (v vec3) String() string {
+	return fmt.Sprintf("vec3{%.3f, %.3f, %.3f}", v.x, v.y, v.z)
 }
