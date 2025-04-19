@@ -122,7 +122,7 @@ func cameraInit(params cameraParams) *camera {
 
 	numWorkers := runtime.NumCPU()
 	c.renderJobQueue = make(chan renderJob, numWorkers)
-	for i := 0; i < numWorkers; i++ {
+	for range numWorkers {
 		go func() {
 			for job := range c.renderJobQueue {
 				for y := job.startRow; y < job.endRow; y++ {

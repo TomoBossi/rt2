@@ -32,7 +32,7 @@ func main() {
 	}
 
 	camera := cameraInit(cameraParams{
-		imgWidth:      130,
+		imgWidth:      200,
 		aspectRatio:   16.0 / 9.0,
 		verticalFov:   60.00,
 		lookFrom:      vec3{-0.183, -0.168, -0.463},
